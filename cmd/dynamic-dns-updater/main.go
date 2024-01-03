@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -34,9 +35,21 @@ func main() {
         log.Fatal("Missing ZONE_IDENTIFIER in env")
     }
 
+    auth_email := os.Getenv("AUTH_EMAIL")
+    if auth_email == "" {
+        log.Fatal("Missing AUTH_EMAIL in env")
+    }
+
+    auth_key := os.Getenv("AUTH_KEY")
+    if auth_key == "" {
+        log.Fatal("Missing AUTH_KEY in env")
+    }
+
     cloudflareconfigs := CloudflareConfigs{
     	Identifier:     identifier,
     	ZoneIdentifier: zone_identifier,
+    	AuthKey:        auth_key,
+    	AuthEmail:      auth_email,
     }
 
     ip, err := getip()
@@ -50,28 +63,33 @@ func main() {
         Name:    recordname,
     	IP:      ip,
     	Comment: fmt.Sprintf("last updated in %s", update_time),
-    	proxied: false,
+    	Proxied: false,
     	DnsType: "A",
     }
 
-    fmt.Printf("%+v\n%+v", cloudflareconfigs, dnsconfig)
+    // fmt.Printf("%+v\n%+v", cloudflareconfigs, dnsconfig)
 
-    // updatedns(dnsconfig, cloudflareconfigs)
-
+    err = updatedns(dnsconfig, cloudflareconfigs)
+   
+    if err != nil {
+        log.Fatal(err)
+    }
 }
 
 
 type CloudflareConfigs struct {
     Identifier string
-    ZoneIdentifier string 
+    ZoneIdentifier string
+    AuthKey string
+    AuthEmail string
 }
 
 type DNSConfig struct {
-    Name string
-    IP string
-    Comment string
-    proxied bool
-    DnsType string
+    Name string `json:"name"`
+    IP string `json:"conent"`
+    Comment string `json:"comment"`
+    Proxied bool  `json:"proxied"`
+    DnsType string `json:"type"`
 
 }
 
@@ -98,4 +116,43 @@ func getip() (string, error) {
         return "", err
     }
     return ip.Query, nil
+}
+
+func updatedns(dnsconfig DNSConfig, cloudflareconfigs CloudflareConfigs) error {
+    data, err := json.Marshal(dnsconfig)
+    if err != nil {
+        return err
+    }
+
+    fmt.Println(string(data))
+
+    apiurl := fmt.Sprintf("https://api.cloudflare.com/client/v4/zones/%s/dns_records/%s", cloudflareconfigs.ZoneIdentifier, cloudflareconfigs.Identifier)
+    request,    err := http.NewRequest(http.MethodGet, apiurl, bytes.NewBuffer(data))
+    if err != nil {
+        return err
+    }
+
+    request.Header.Set("Content-Type", "application/json")
+    request.Header.Set("X-Auth-Email", cloudflareconfigs.AuthEmail)
+    request.Header.Set("X-Auth-Key", cloudflareconfigs.AuthKey)
+
+
+    
+    client := &http.Client{}
+    response, err := client.Do(request)
+    if err != nil {
+        return err
+    }
+
+    responseData, err := io.ReadAll(response.Body)
+    if err != nil {
+        log.Fatal(err)
+    }
+    fmt.Println(string(responseData))
+
+    defer response.Body.Close()
+
+
+    return nil
+
 }
