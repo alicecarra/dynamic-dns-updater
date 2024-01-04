@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"log"
+	"net"
 	"net/http"
 	"os"
 	"time"
@@ -52,27 +53,50 @@ func main() {
     	AuthEmail:      auth_email,
     }
 
-    ip, err := getip()
-    if err != nil {
-        log.Fatal(err)
-    }
+    OUTER:
+    for {
+        dns_ip, err := net.LookupIP(recordname)
+        if err != nil {
+            log.Fatal(err)
+        }
 
-    update_time := time.Now().Format(time.RFC822Z)
+        actual_ip, err := getip()
+        if err != nil {
+            log.Fatal(err)
+        }
+
+        for _, ip := range dns_ip {
     
-    dnsconfig := DNSConfig{
-        Name:    recordname,
-    	IP:      ip,
-    	Comment: fmt.Sprintf("last updated in %s", update_time),
-    	Proxied: false,
-    	DnsType: "A",
-    }
+            if ip.String() == actual_ip { 
+                log.Println("IP not changed")
 
-    // fmt.Printf("%+v\n%+v", cloudflareconfigs, dnsconfig)
+                time.Sleep(300 * time.Second)
 
-    err = updatedns(dnsconfig, cloudflareconfigs)
-   
-    if err != nil {
-        log.Fatal(err)
+                continue OUTER
+            }
+    
+        }
+
+        log.Printf("Updating IP to %s\n", actual_ip)
+
+
+
+        update_time := time.Now().Format(time.RFC822Z)
+        
+        dnsconfig := DNSConfig{
+            Name:    recordname,
+            IP:      actual_ip,
+            Comment: fmt.Sprintf("last updated in %s", update_time),
+            Proxied: false,
+            DnsType: "A",
+        }
+
+
+        err = updatedns(dnsconfig, cloudflareconfigs)
+    
+        if err != nil {
+            log.Fatal(err)
+        }
     }
 }
 
@@ -86,7 +110,7 @@ type CloudflareConfigs struct {
 
 type DNSConfig struct {
     Name string `json:"name"`
-    IP string `json:"conent"`
+    IP string `json:"content"`
     Comment string `json:"comment"`
     Proxied bool  `json:"proxied"`
     DnsType string `json:"type"`
@@ -127,7 +151,7 @@ func updatedns(dnsconfig DNSConfig, cloudflareconfigs CloudflareConfigs) error {
     fmt.Println(string(data))
 
     apiurl := fmt.Sprintf("https://api.cloudflare.com/client/v4/zones/%s/dns_records/%s", cloudflareconfigs.ZoneIdentifier, cloudflareconfigs.Identifier)
-    request,    err := http.NewRequest(http.MethodGet, apiurl, bytes.NewBuffer(data))
+    request,    err := http.NewRequest(http.MethodPut, apiurl, bytes.NewBuffer(data))
     if err != nil {
         return err
     }
