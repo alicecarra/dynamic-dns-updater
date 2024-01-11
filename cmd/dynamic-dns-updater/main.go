@@ -87,7 +87,7 @@ func main() {
             Name:    recordname,
             IP:      actual_ip,
             Comment: fmt.Sprintf("last updated in %s", update_time),
-            Proxied: false,
+            Proxied: true,
             DnsType: "A",
         }
 
