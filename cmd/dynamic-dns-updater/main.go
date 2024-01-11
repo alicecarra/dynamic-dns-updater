@@ -97,6 +97,8 @@ func main() {
         if err != nil {
             log.Fatal(err)
         }
+
+        time.Sleep(300 * time.Second)
     }
 }
 
