@@ -43,9 +43,9 @@ func main() {
 	// 	log.Fatal("Missing AUTH_KEY in env")
 	// }
 
-	auth_key := os.Getenv("BEARER_KEY")
+	auth_key := os.Getenv("AUTH_KEY")
 	if auth_key == "" {
-		log.Fatal("Missing BEARER_KEY in env")
+		log.Fatal("Missing AUTH_KEY in env")
 	}
 
 	
