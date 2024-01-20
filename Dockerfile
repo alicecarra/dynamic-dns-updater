@@ -6,14 +6,14 @@ WORKDIR /dynamic-dns-updater
 COPY go.mod go.sum ./
 RUN go mod download
 
-COPY ./cmd/dynamic-dns-updater/main.go ./
+COPY . ./
 
-RUN go build -o /dynamic-dns-updater
+RUN go build -o /dynamic-dns-updater/ ./cmd/dynamic-dns-updater
 
 
 FROM debian:bookworm AS build-release-stage
 
-RUN apt-get update && apt-get upgrade
+RUN apt-get update -y && apt-get upgrade -y
 RUN apt-get install -y ca-certificates
 
 
