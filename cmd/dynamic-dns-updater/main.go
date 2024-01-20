@@ -1,15 +1,14 @@
 package main
 
 import (
-	"bytes"
-	"encoding/json"
 	"fmt"
-	"io"
 	"log"
-	"net/http"
 	"os"
 	"time"
 
+	getip "github.com/alicecarra/dynamic-dns-updater/internal"
+	"github.com/alicecarra/dynamic-dns-updater/pkg/cloudflare"
+	"github.com/alicecarra/dynamic-dns-updater/pkg/cloudflare/dns"
 	"github.com/joho/godotenv"
 )
 
@@ -44,177 +43,58 @@ func main() {
 		log.Fatal("Missing AUTH_KEY in env")
 	}
 
-	cloudflareconfigs := CloudflareConfigs{
-		Identifier:     identifier,
+	cloudflareconfigs := cloudflare.CloudflareBasicConfigs{
 		ZoneIdentifier: zone_identifier,
 		AuthKey:        auth_key,
 		AuthEmail:      auth_email,
 	}
 
-OUTER:
+	dnsrecords := dns.Getdns(cloudflareconfigs)
+	fmt.Println("Avalible Records")
+	fmt.Printf("%+v\n", dnsrecords)
+
+
 	for {
+		dnsrecords := dns.Getdns(cloudflareconfigs)
 
-		dnsrecords := getdns(cloudflareconfigs)
-
-		fmt.Printf("%+v\n", dnsrecords)
-
-		actual_ip, err := getip()
+		actual_ip, err := getip.Getip()
 		if err != nil {
 			log.Fatal(err)
 		}
 
 		for _, record := range dnsrecords {
 
-			if record.Content == actual_ip {
-				log.Println("IP not changed")
-
-				time.Sleep(300 * time.Second)
-
-				continue OUTER
+			// check for record name specified on env
+			if record.Name != recordname{
+				continue 
 			}
 
+			if record.Content != actual_ip {
+				log.Printf("Updating IP to %s\n", actual_ip)
+
+				update_time := time.Now().Format(time.RFC822Z)
+
+				dnsconfig := dns.DNSUpdateConfig{
+					Name:     recordname,
+					IP:       actual_ip,
+					Comment:  fmt.Sprintf("last updated in %s", update_time),
+					Proxied:  record.Proxied,
+					Dns_type: "A",
+					Zone_id:  record.Zone_id,
+					Id:       record.Id,
+				}
+
+				fmt.Printf("%+v", dnsconfig)
+		
+				err = dns.Updatedns(dnsconfig, cloudflareconfigs)
+				if err != nil {
+					log.Fatal(err)
+				}
+			}
 		}
 
-		log.Printf("Updating IP to %s\n", actual_ip)
-
-		update_time := time.Now().Format(time.RFC822Z)
-
-		dnsconfig := DNSConfig{
-			Name:    recordname,
-			IP:      actual_ip,
-			Comment: fmt.Sprintf("last updated in %s", update_time),
-			Proxied: true,
-			DnsType: "A",
-		}
-
-		err = updatedns(dnsconfig, cloudflareconfigs)
-
-		if err != nil {
-			log.Fatal(err)
-		}
-
+		log.Println("IP not changed")
 		time.Sleep(300 * time.Second)
 	}
 }
 
-type CloudflareConfigs struct {
-	Identifier     string
-	ZoneIdentifier string
-	AuthKey        string
-	AuthEmail      string
-}
-
-type DNSConfig struct {
-	Name    string `json:"name"`
-	IP      string `json:"content"`
-	Comment string `json:"comment"`
-	Proxied bool   `json:"proxied"`
-	DnsType string `json:"type"`
-}
-
-type IP struct {
-	Query string
-}
-
-func getip() (string, error) {
-	req, err := http.Get("http://ip-api.com/json/")
-	if err != nil {
-		return "", err
-	}
-	defer req.Body.Close()
-
-	body, err := io.ReadAll(req.Body)
-	if err != nil {
-		return "", err
-	}
-	var ip IP
-
-	err = json.Unmarshal(body, &ip)
-	if err != nil {
-		return "", err
-	}
-	return ip.Query, nil
-}
-
-type DNSRecord struct {
-	Id         string
-	Zone_id    string
-	Zone_name  string
-	Name       string
-	Dns_type   string
-	Content    string
-	Proxiable  bool
-	Proxied    bool
-	Comment    string
-	ModifiedOn string
-}
-
-type DnsRecordsResponse struct {
-	Result []DNSRecord
-}
-
-func getdns(cloudflareconfigs CloudflareConfigs) []DNSRecord {
-	apiurl := fmt.Sprintf("https://api.cloudflare.com/client/v4/zones/%s/dns_records", cloudflareconfigs.ZoneIdentifier)
-
-	request, err := http.NewRequest(
-		http.MethodGet,
-		apiurl,
-		nil,
-	)
-	if err != nil {
-		log.Fatalf("error creating HTTP request: %v", err)
-	}
-
-	request.Header.Set("Content-Type", "application/json")
-	request.Header.Set("X-Auth-Email", cloudflareconfigs.AuthEmail)
-	request.Header.Set("X-Auth-Key", cloudflareconfigs.AuthKey)
-
-	response, err := http.DefaultClient.Do(request)
-	if err != nil {
-		log.Fatalf("error sending HTTP request: %v", err)
-	}
-
-	var dnsrecords DnsRecordsResponse
-	d := json.NewDecoder(response.Body)
-	if err := d.Decode(&dnsrecords); err != nil {
-		log.Fatalf("error deserializing dns data: %v", err)
-	}
-
-	return dnsrecords.Result
-}
-
-func updatedns(dnsconfig DNSConfig, cloudflareconfigs CloudflareConfigs) error {
-	data, err := json.Marshal(dnsconfig)
-	if err != nil {
-		return err
-	}
-
-	fmt.Println(string(data))
-
-	apiurl := fmt.Sprintf("https://api.cloudflare.com/client/v4/zones/%s/dns_records/%s", cloudflareconfigs.ZoneIdentifier, cloudflareconfigs.Identifier)
-	request, err := http.NewRequest(http.MethodPut, apiurl, bytes.NewBuffer(data))
-	if err != nil {
-		return err
-	}
-
-	request.Header.Set("Content-Type", "application/json")
-	request.Header.Set("X-Auth-Email", cloudflareconfigs.AuthEmail)
-	request.Header.Set("X-Auth-Key", cloudflareconfigs.AuthKey)
-
-	client := &http.Client{}
-	response, err := client.Do(request)
-	if err != nil {
-		return err
-	}
-
-	responseData, err := io.ReadAll(response.Body)
-	if err != nil {
-		log.Fatal(err)
-	}
-	fmt.Println(string(responseData))
-
-	defer response.Body.Close()
-
-	return nil
-
-}
