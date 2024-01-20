@@ -33,29 +33,41 @@ func main() {
 		log.Fatal("Missing ZONE_IDENTIFIER in env")
 	}
 
-	auth_email := os.Getenv("AUTH_EMAIL")
-	if auth_email == "" {
-		log.Fatal("Missing AUTH_EMAIL in env")
+	// auth_email := os.Getenv("AUTH_EMAIL")
+	// if auth_email == "" {
+	// 	log.Fatal("Missing AUTH_EMAIL in env")
+	// }
+
+	// auth_key := os.Getenv("AUTH_KEY")
+	// if auth_key == "" {
+	// 	log.Fatal("Missing AUTH_KEY in env")
+	// }
+
+	auth_key := os.Getenv("BEARER_KEY")
+	if auth_key == "" {
+		log.Fatal("Missing BEARER_KEY in env")
 	}
 
-	auth_key := os.Getenv("AUTH_KEY")
-	if auth_key == "" {
-		log.Fatal("Missing AUTH_KEY in env")
-	}
+	
 
 	cloudflareconfigs := cloudflare.CloudflareBasicConfigs{
-		ZoneIdentifier: zone_identifier,
-		AuthKey:        auth_key,
-		AuthEmail:      auth_email,
+		ZoneIdentifier:    zone_identifier,
+		AuthtorizationKey: auth_key,
 	}
 
-	dnsrecords := dns.Getdns(cloudflareconfigs)
+	dnsrecords, err := dns.Getdns(cloudflareconfigs)
+	if err != nil {
+		log.Fatal(err)
+	}
 	fmt.Println("Avalible Records")
 	fmt.Printf("%+v\n", dnsrecords)
 
 
 	for {
-		dnsrecords := dns.Getdns(cloudflareconfigs)
+		dnsrecords, err := dns.Getdns(cloudflareconfigs)
+		if err != nil {
+			log.Fatal(err)
+		}
 
 		actual_ip, err := getip.Getip()
 		if err != nil {

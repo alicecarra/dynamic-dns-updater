@@ -3,7 +3,6 @@ package dns
 import (
 	"encoding/json"
 	"fmt"
-	"log"
 	"net/http"
 
 	"github.com/alicecarra/dynamic-dns-updater/pkg/cloudflare"
@@ -15,7 +14,7 @@ type DnsRecordsResponse struct {
 }
 
 
-func Getdns(cloudflareconfigs cloudflare.CloudflareBasicConfigs) []DNSRecord {
+func Getdns(cloudflareconfigs cloudflare.CloudflareBasicConfigs) ([]DNSRecord, error) {
 	apiurl := fmt.Sprintf("https://api.cloudflare.com/client/v4/zones/%s/dns_records", cloudflareconfigs.ZoneIdentifier)
 
 	request, err := http.NewRequest(
@@ -24,25 +23,26 @@ func Getdns(cloudflareconfigs cloudflare.CloudflareBasicConfigs) []DNSRecord {
 		nil,
 	)
 	if err != nil {
-		log.Fatalf("error creating HTTP request: %v", err)
+		return nil, err
 	}
 
 	request.Header.Set("Content-Type", "application/json")
-	request.Header.Set("X-Auth-Email", cloudflareconfigs.AuthEmail)
-	request.Header.Set("X-Auth-Key", cloudflareconfigs.AuthKey)
+	// request.Header.Set("X-Auth-Email", cloudflareconfigs.AuthEmail)
+	// request.Header.Set("X-Auth-Key", cloudflareconfigs.AuthKey)
+	request.Header.Set("Authorization", cloudflareconfigs.AuthtorizationKey)
 
 	response, err := http.DefaultClient.Do(request)
 	if err != nil {
-		log.Fatalf("error sending HTTP request: %v", err)
+		return nil, err
 	}
 
 	var dnsrecords DnsRecordsResponse
 	d := json.NewDecoder(response.Body)
 	if err := d.Decode(&dnsrecords); err != nil {
-		log.Fatalf("error deserializing dns data: %v", err)
+		return nil, err
 	}
 
-	return dnsrecords.Result
+	return dnsrecords.Result, nil
 }
 
 

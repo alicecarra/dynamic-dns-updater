@@ -36,8 +36,9 @@ func Updatedns(dnsupdateconfig DNSUpdateConfig, cloudflareconfigs cloudflare.Clo
 	}
 
 	request.Header.Set("Content-Type", "application/json")
-	request.Header.Set("X-Auth-Email", cloudflareconfigs.AuthEmail)
-	request.Header.Set("X-Auth-Key", cloudflareconfigs.AuthKey)
+	// request.Header.Set("X-Auth-Email", cloudflareconfigs.AuthEmail)
+	// request.Header.Set("X-Auth-Key", cloudflareconfigs.AuthKey)
+	request.Header.Set("Authorization", cloudflareconfigs.AuthtorizationKey)
 
 	client := &http.Client{}
 	response, err := client.Do(request)
