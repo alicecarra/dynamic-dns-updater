@@ -23,10 +23,10 @@ func main() {
 		log.Fatal("Missing RECORD_NAME in env")
 	}
 
-	identifier := os.Getenv("IDENTIFIER")
-	if identifier == "" {
-		log.Fatal("Missing IDENTIFIER in env")
-	}
+	// identifier := os.Getenv("IDENTIFIER")
+	// if identifier == "" {
+	// 	log.Fatal("Missing IDENTIFIER in env")
+	// }
 
 	zone_identifier := os.Getenv("ZONE_IDENTIFIER")
 	if zone_identifier == "" {
